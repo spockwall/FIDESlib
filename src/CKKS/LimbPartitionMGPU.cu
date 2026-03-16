@@ -1681,7 +1681,6 @@ void LimbPartition::modup_ksk_moddown_mgpu(LimbPartition& c0,
 				}
 			}
 		}
-	skip_capture:
 		if ((MEMCPY_PEER && GRAPH_CAPTURE && id == 0) || (!MEMCPY_PEER && GRAPH_CAPTURE)) {
 			CudaCheckErrorModNoSync;
 			cudaGraphLaunch(exec_old->second.second, s.ptr());
@@ -1691,6 +1690,7 @@ void LimbPartition::modup_ksk_moddown_mgpu(LimbPartition& c0,
 			// CudaCheckErrorModNoSync;
 		}
 	}
+	skip_capture:
 
 	if (MEMCPY_PEER && GRAPH_CAPTURE) {
 		if (skip) {
@@ -2228,13 +2228,13 @@ void LimbPartition::modupMGPU(LimbPartition& aux, const std::vector<uint64_t*>& 
 				}
 			}
 		}
-	skip_capture:
 		if ((MEMCPY_PEER && GRAPH_CAPTURE && id == 0) || (!MEMCPY_PEER && GRAPH_CAPTURE)) {
 			CudaCheckErrorModNoSync;
 			cudaGraphLaunch(exec_old->second.second, s.ptr());
 			CudaCheckErrorModNoSync;
 		}
 	}
+	skip_capture:
 
 	if (MEMCPY_PEER && GRAPH_CAPTURE) {
 		if (skip) {
