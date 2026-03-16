@@ -573,6 +573,7 @@ struct modup_ksk_cached_graph {
 	void*** digits; //(s, cc.dnum * 5, device);
 	uint64_t buffKeyA, buffKeyB, buffAux1, buffAux2, buffC0, buffC1;
 };
+
 static std::map<Parameters, std::map<std::tuple<int, bool>, modup_ksk_cached_graph>> modup_ksk_map_c_to_map_graph_exec[8];
 static std::atomic_uint64_t modup_ksk_skip;
 
@@ -589,9 +590,9 @@ void LimbPartition::modup_ksk_moddown_mgpu(LimbPartition& c0,
   std::vector<std::vector<std::vector<std::pair<uint64_t, TimelineSemaphore*>>>>& signal,
   std::vector<std::atomic_uint64_t*>& thread_stop) {
 
-	using cached_graph = modup_ksk_cached_graph;
+	using cached_graph			  = modup_ksk_cached_graph;
 	auto& map_c_to_map_graph_exec = modup_ksk_map_c_to_map_graph_exec;
-	auto& skip = modup_ksk_skip;
+	auto& skip					  = modup_ksk_skip;
 
 	cudaSetDevice(device);
 
@@ -1358,10 +1359,10 @@ void LimbPartition::modup_ksk_moddown_mgpu(LimbPartition& c0,
 						}
 					}
 					NCCLCHECK(ncclGroupEnd());
-				}
 #else
 					assert(false);
 #endif
+				}
 			}
 		}
 	}
@@ -1693,7 +1694,7 @@ void LimbPartition::modup_ksk_moddown_mgpu(LimbPartition& c0,
 			// CudaCheckErrorModNoSync;
 		}
 	}
-	skip_capture:
+skip_capture:
 
 	if (MEMCPY_PEER && GRAPH_CAPTURE) {
 		if (skip) {
@@ -1719,14 +1720,15 @@ struct modupMGPU_cached_graph {
 	cudaGraphExec_t second;
 	uint64_t buffC0, buffC1;
 };
+
 static std::map<Parameters, std::map<int, modupMGPU_cached_graph>> modupMGPU_map_c_to_map_graph_exec[8];
 static std::atomic_uint64_t modupMGPU_skip;
 
 void LimbPartition::modupMGPU(LimbPartition& aux, const std::vector<uint64_t*>& bufferGather_, std::vector<std::atomic_uint64_t*>& thread_stop, std::vector<Stream*>& external_s) {
 
-	using cached_graph = modupMGPU_cached_graph;
+	using cached_graph			  = modupMGPU_cached_graph;
 	auto& map_c_to_map_graph_exec = modupMGPU_map_c_to_map_graph_exec;
-	auto& skip = modupMGPU_skip;
+	auto& skip					  = modupMGPU_skip;
 
 	auto& map_exec = map_c_to_map_graph_exec[id][this->cc.param];
 	auto exec_old  = map_exec.find(*level);
@@ -2240,7 +2242,7 @@ void LimbPartition::modupMGPU(LimbPartition& aux, const std::vector<uint64_t*>& 
 			CudaCheckErrorModNoSync;
 		}
 	}
-	skip_capture:
+skip_capture:
 
 	if (MEMCPY_PEER && GRAPH_CAPTURE) {
 		if (skip) {
