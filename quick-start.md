@@ -21,8 +21,7 @@ mkdir -p build && cd build
 Configure CMake to download and install the required patched version of OpenFHE (`-DFIDESLIB_INSTALL_OPENFHE=ON`). To avoid issues with older/unsupported GPU architectures, tell CMake to detect your specific GPU architecture using `-DFIDESLIB_ARCH="native"`:
 
 ```bash
-cmake .. -DFIDESLIB_INSTALL_OPENFHE=ON -DFIDESLIB_ARCH="native" -DFIDESLIB_INSTALL_PREFIX=/tmp/fideslib_install -DOPENFHE_INSTALL_PREFIX=/tmp/fideslib_install -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc
-
+// clang++ 18
 cmake .. \
   -DFIDESLIB_INSTALL_OPENFHE=ON \
   -DFIDESLIB_ARCH="native" \
@@ -52,7 +51,7 @@ cmake .. \
 ```
 *(Note: If `native` doesn't work, you can explicitly set the architecture for modern GPUs by passing `-DFIDESLIB_ARCH="80;86;89"`, leaving out `70`)*
 
-# you already have build/, no need to rebuild everything
+Note: If you already have a `build/` directory, you don't need to rebuild everything:
 ```bash
 cmake --build build -j
 ```
