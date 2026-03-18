@@ -1,2 +1,9 @@
 CompileFlags:
-  Add: [--cuda-gpu-arch=sm_70]
+  Add: [--cuda-gpu-arch=sm_86]
+  Remove:
+    - "-forward-unknown-to-host-compiler"
+    - "-ccbin=*"
+    - "-rdc=*"
+    - "--diag-suppress=*"
+    - "--generate-code=*"
+    - "-Xcompiler=-fPIE"
