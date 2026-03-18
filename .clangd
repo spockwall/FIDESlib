@@ -1,5 +1,5 @@
 CompileFlags:
-  Add: [--cuda-gpu-arch=sm_86]
+  Add: [--cuda-gpu-arch=sm_86, -x, cuda]
   Remove:
     - "-forward-unknown-to-host-compiler"
     - "-ccbin=*"
@@ -7,3 +7,11 @@ CompileFlags:
     - "--diag-suppress=*"
     - "--generate-code=*"
     - "-Xcompiler=-fPIE"
+    - "-Xcompiler=-fPIC"
+
+Diagnostics:
+  Suppress:
+    - expected_expression
+    - unknown_typename
+    - undeclared_var_use
+    - invalid_token_after_toplevel_declarator
