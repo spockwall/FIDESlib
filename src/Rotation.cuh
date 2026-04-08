@@ -6,6 +6,7 @@
 #define FIDESLIB_ROTATION_CUH
 
 #include <iostream>
+#include "AddSub.cuh"
 #include "ConstantsGPU.cuh"
 #include "Math.cuh"
 
@@ -35,10 +36,36 @@ __device__ __forceinline__ void automorph__(T* a, T* a_rot, const int n, const i
     a_rot[rotIndex] = a[j];
 }
 
+// a_rot[rotIndex] = a[j] + b[rotIndex]   (automorph + modadd in one pass)
+template <typename T>
+__device__ __forceinline__ void automorphAdd__(T* a, T* a_rot, const T* b, const int n, const int n_bits,
+                                               const int index, const int br, const int primeid) {
+    uint32_t j = blockIdx.x * blockDim.x + threadIdx.x;
+    uint32_t rotIndex = automorph_slot(n_bits, index, j);
+    a_rot[rotIndex] = modadd(a[j], b[rotIndex], primeid);
+}
+
+// a_rot[rotIndex] = a[j] - b[rotIndex]   (automorph + modsub in one pass)
+template <typename T>
+__device__ __forceinline__ void automorphSub__(T* a, T* a_rot, const T* b, const int n, const int n_bits,
+                                               const int index, const int br, const int primeid) {
+    uint32_t j = blockIdx.x * blockDim.x + threadIdx.x;
+    uint32_t rotIndex = automorph_slot(n_bits, index, j);
+    a_rot[rotIndex] = modsub(a[j], b[rotIndex], primeid);
+}
+
 template <typename T>
 __global__ void automorph_(T* a, T* a_rot, const int index, const int br);
 
 __global__ void automorph_multi_(void** a, void** a_rot, const int k, const int br, const int primeid_init);
+
+// Fused automorph + add:  a_rot[perm(j)] = a[j] + b[perm(j)]
+__global__ void automorphAdd_multi_(void** a, void** a_rot, void** b, const int k, const int br,
+                                    const int primeid_init);
+
+// Fused automorph + sub:  a_rot[perm(j)] = a[j] - b[perm(j)]
+__global__ void automorphSub_multi_(void** a, void** a_rot, void** b, const int k, const int br,
+                                    const int primeid_init);
 
 }  // namespace FIDESlib::CKKS
 

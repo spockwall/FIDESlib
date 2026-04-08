@@ -80,6 +80,17 @@ class RNSPoly {
     void subMult(const RNSPoly& poly1, const RNSPoly& poly2);
     void addSub(const RNSPoly& poly1, const RNSPoly& poly2);
     void multAddSub(const RNSPoly& poly1, const RNSPoly& poly2, const RNSPoly& poly3);
+    void subAdd(const RNSPoly& poly1, const RNSPoly& poly2);
+    void addAdd(const RNSPoly& poly1, const RNSPoly& poly2);
+    void subSub(const RNSPoly& poly1, const RNSPoly& poly2);
+    void multMultAdd(const RNSPoly& poly1, const RNSPoly& poly2, const RNSPoly& poly3);
+    void scalarMultAdd(std::vector<uint64_t>& scalar, std::vector<uint64_t>& shoup_mu, const RNSPoly& poly2);
+    void scalarMultSub(std::vector<uint64_t>& scalar, std::vector<uint64_t>& shoup_mu, const RNSPoly& poly2);
+
+    // Fused automorph + add:  this[perm(j)] = src[j] + b[perm(j)]
+    void automorphAdd(const int idx, const int br, const RNSPoly& src, const RNSPoly& b);
+    // Fused automorph + sub:  this[perm(j)] = src[j] - b[perm(j)]
+    void automorphSub(const int idx, const int br, const RNSPoly& src, const RNSPoly& b);
 
     void loadDecompDigit(const std::vector<std::vector<std::vector<uint64_t>>>& data,
                          const std::vector<std::vector<uint64_t>>& moduli);

@@ -14,6 +14,10 @@
 //   2. subMult      = modsub + modmult    (mirror of existing addMult)
 //   3. addSub       = modadd + modsub
 //   4. multAddSub   = modmult + modadd + modsub  (3-op chain)
+//   5. subAdd       = modsub + modadd     (complement of addSub)
+//   6. addAdd       = modadd + modadd     (two adds in one pass)
+//   7. subSub       = modsub + modsub     (two subs in one pass)
+//   8. multMultAdd  = modmult + modmult + modadd  (two mults + add)
 //
 
 #include <benchmark/benchmark.h>
@@ -374,6 +378,352 @@ BENCHMARK_DEFINE_F(GeneralFixture, MultAddSub_Fused)(benchmark::State& state) {
 }
 
 // ============================================================================
+//  Candidate 5: subAdd  (this = (this - p1) + p2)
+//  Compare: sub(p1) + add(p2)  vs  subAdd(p1, p2)
+// ============================================================================
+
+BENCHMARK_DEFINE_F(GeneralFixture, SubAdd_Unfused)(benchmark::State& state) {
+	if (this->generalTestParams.multDepth <= static_cast<uint64_t>(state.range(3))) {
+		state.SkipWithMessage("cc.L <= level");
+		return;
+	}
+
+	std::vector<int> GPUs               = generalTestParams.GPUs;
+	fideslibParams.batch                = state.range(2);
+	FIDESlib::CKKS::RawParams raw_param = FIDESlib::CKKS::GetRawParams(cc);
+	FIDESlib::CKKS::Context GPUcc       = FIDESlib::CKKS::GenCryptoContextGPU(fideslibParams.adaptTo(raw_param), GPUs);
+
+	std::vector<double> x1 = {0.25, 0.5, 0.75, 1.0, 2.0, 3.0, 4.0, 5.0};
+	lbcrypto::Plaintext ptxt1 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	lbcrypto::Plaintext ptxt2 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	lbcrypto::Plaintext ptxt3 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	auto c1 = cc->Encrypt(keys.publicKey, ptxt1);
+	auto c2 = cc->Encrypt(keys.publicKey, ptxt2);
+	auto c3 = cc->Encrypt(keys.publicKey, ptxt3);
+
+	FIDESlib::CKKS::Ciphertext GPUct1(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c1));
+	FIDESlib::CKKS::Ciphertext GPUct2(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c2));
+	FIDESlib::CKKS::Ciphertext GPUct3(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c3));
+
+	state.counters["p_batch"] = state.range(2);
+	state.counters["p_limbs"] = state.range(3);
+	CudaCheckErrorMod;
+
+	for (auto _ : state) {
+		auto start = std::chrono::high_resolution_clock::now();
+		GPUct1.c0.sub(GPUct2.c0);
+		GPUct1.c0.add(GPUct3.c0);
+		GPUct1.c1.sub(GPUct2.c1);
+		GPUct1.c1.add(GPUct3.c1);
+		cudaDeviceSynchronize();
+		auto end     = std::chrono::high_resolution_clock::now();
+		auto elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+		state.SetIterationTime(elapsed.count());
+	}
+	CudaCheckErrorMod;
+}
+
+BENCHMARK_DEFINE_F(GeneralFixture, SubAdd_Fused)(benchmark::State& state) {
+	if (this->generalTestParams.multDepth <= static_cast<uint64_t>(state.range(3))) {
+		state.SkipWithMessage("cc.L <= level");
+		return;
+	}
+
+	std::vector<int> GPUs               = generalTestParams.GPUs;
+	fideslibParams.batch                = state.range(2);
+	FIDESlib::CKKS::RawParams raw_param = FIDESlib::CKKS::GetRawParams(cc);
+	FIDESlib::CKKS::Context GPUcc       = FIDESlib::CKKS::GenCryptoContextGPU(fideslibParams.adaptTo(raw_param), GPUs);
+
+	std::vector<double> x1 = {0.25, 0.5, 0.75, 1.0, 2.0, 3.0, 4.0, 5.0};
+	lbcrypto::Plaintext ptxt1 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	lbcrypto::Plaintext ptxt2 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	lbcrypto::Plaintext ptxt3 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	auto c1 = cc->Encrypt(keys.publicKey, ptxt1);
+	auto c2 = cc->Encrypt(keys.publicKey, ptxt2);
+	auto c3 = cc->Encrypt(keys.publicKey, ptxt3);
+
+	FIDESlib::CKKS::Ciphertext GPUct1(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c1));
+	FIDESlib::CKKS::Ciphertext GPUct2(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c2));
+	FIDESlib::CKKS::Ciphertext GPUct3(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c3));
+
+	state.counters["p_batch"] = state.range(2);
+	state.counters["p_limbs"] = state.range(3);
+	CudaCheckErrorMod;
+
+	for (auto _ : state) {
+		auto start = std::chrono::high_resolution_clock::now();
+		GPUct1.c0.subAdd(GPUct2.c0, GPUct3.c0);
+		GPUct1.c1.subAdd(GPUct2.c1, GPUct3.c1);
+		cudaDeviceSynchronize();
+		auto end     = std::chrono::high_resolution_clock::now();
+		auto elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+		state.SetIterationTime(elapsed.count());
+	}
+	CudaCheckErrorMod;
+}
+
+// ============================================================================
+//  Candidate 6: addAdd  (this = (this + p1) + p2)
+//  Compare: add(p1) + add(p2)  vs  addAdd(p1, p2)
+// ============================================================================
+
+BENCHMARK_DEFINE_F(GeneralFixture, AddAdd_Unfused)(benchmark::State& state) {
+	if (this->generalTestParams.multDepth <= static_cast<uint64_t>(state.range(3))) {
+		state.SkipWithMessage("cc.L <= level");
+		return;
+	}
+
+	std::vector<int> GPUs               = generalTestParams.GPUs;
+	fideslibParams.batch                = state.range(2);
+	FIDESlib::CKKS::RawParams raw_param = FIDESlib::CKKS::GetRawParams(cc);
+	FIDESlib::CKKS::Context GPUcc       = FIDESlib::CKKS::GenCryptoContextGPU(fideslibParams.adaptTo(raw_param), GPUs);
+
+	std::vector<double> x1 = {0.25, 0.5, 0.75, 1.0, 2.0, 3.0, 4.0, 5.0};
+	lbcrypto::Plaintext ptxt1 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	lbcrypto::Plaintext ptxt2 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	lbcrypto::Plaintext ptxt3 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	auto c1 = cc->Encrypt(keys.publicKey, ptxt1);
+	auto c2 = cc->Encrypt(keys.publicKey, ptxt2);
+	auto c3 = cc->Encrypt(keys.publicKey, ptxt3);
+
+	FIDESlib::CKKS::Ciphertext GPUct1(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c1));
+	FIDESlib::CKKS::Ciphertext GPUct2(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c2));
+	FIDESlib::CKKS::Ciphertext GPUct3(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c3));
+
+	state.counters["p_batch"] = state.range(2);
+	state.counters["p_limbs"] = state.range(3);
+	CudaCheckErrorMod;
+
+	for (auto _ : state) {
+		auto start = std::chrono::high_resolution_clock::now();
+		GPUct1.c0.add(GPUct2.c0);
+		GPUct1.c0.add(GPUct3.c0);
+		GPUct1.c1.add(GPUct2.c1);
+		GPUct1.c1.add(GPUct3.c1);
+		cudaDeviceSynchronize();
+		auto end     = std::chrono::high_resolution_clock::now();
+		auto elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+		state.SetIterationTime(elapsed.count());
+	}
+	CudaCheckErrorMod;
+}
+
+BENCHMARK_DEFINE_F(GeneralFixture, AddAdd_Fused)(benchmark::State& state) {
+	if (this->generalTestParams.multDepth <= static_cast<uint64_t>(state.range(3))) {
+		state.SkipWithMessage("cc.L <= level");
+		return;
+	}
+
+	std::vector<int> GPUs               = generalTestParams.GPUs;
+	fideslibParams.batch                = state.range(2);
+	FIDESlib::CKKS::RawParams raw_param = FIDESlib::CKKS::GetRawParams(cc);
+	FIDESlib::CKKS::Context GPUcc       = FIDESlib::CKKS::GenCryptoContextGPU(fideslibParams.adaptTo(raw_param), GPUs);
+
+	std::vector<double> x1 = {0.25, 0.5, 0.75, 1.0, 2.0, 3.0, 4.0, 5.0};
+	lbcrypto::Plaintext ptxt1 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	lbcrypto::Plaintext ptxt2 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	lbcrypto::Plaintext ptxt3 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	auto c1 = cc->Encrypt(keys.publicKey, ptxt1);
+	auto c2 = cc->Encrypt(keys.publicKey, ptxt2);
+	auto c3 = cc->Encrypt(keys.publicKey, ptxt3);
+
+	FIDESlib::CKKS::Ciphertext GPUct1(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c1));
+	FIDESlib::CKKS::Ciphertext GPUct2(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c2));
+	FIDESlib::CKKS::Ciphertext GPUct3(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c3));
+
+	state.counters["p_batch"] = state.range(2);
+	state.counters["p_limbs"] = state.range(3);
+	CudaCheckErrorMod;
+
+	for (auto _ : state) {
+		auto start = std::chrono::high_resolution_clock::now();
+		GPUct1.c0.addAdd(GPUct2.c0, GPUct3.c0);
+		GPUct1.c1.addAdd(GPUct2.c1, GPUct3.c1);
+		cudaDeviceSynchronize();
+		auto end     = std::chrono::high_resolution_clock::now();
+		auto elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+		state.SetIterationTime(elapsed.count());
+	}
+	CudaCheckErrorMod;
+}
+
+// ============================================================================
+//  Candidate 7: subSub  (this = (this - p1) - p2)
+//  Compare: sub(p1) + sub(p2)  vs  subSub(p1, p2)
+// ============================================================================
+
+BENCHMARK_DEFINE_F(GeneralFixture, SubSub_Unfused)(benchmark::State& state) {
+	if (this->generalTestParams.multDepth <= static_cast<uint64_t>(state.range(3))) {
+		state.SkipWithMessage("cc.L <= level");
+		return;
+	}
+
+	std::vector<int> GPUs               = generalTestParams.GPUs;
+	fideslibParams.batch                = state.range(2);
+	FIDESlib::CKKS::RawParams raw_param = FIDESlib::CKKS::GetRawParams(cc);
+	FIDESlib::CKKS::Context GPUcc       = FIDESlib::CKKS::GenCryptoContextGPU(fideslibParams.adaptTo(raw_param), GPUs);
+
+	std::vector<double> x1 = {0.25, 0.5, 0.75, 1.0, 2.0, 3.0, 4.0, 5.0};
+	lbcrypto::Plaintext ptxt1 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	lbcrypto::Plaintext ptxt2 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	lbcrypto::Plaintext ptxt3 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	auto c1 = cc->Encrypt(keys.publicKey, ptxt1);
+	auto c2 = cc->Encrypt(keys.publicKey, ptxt2);
+	auto c3 = cc->Encrypt(keys.publicKey, ptxt3);
+
+	FIDESlib::CKKS::Ciphertext GPUct1(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c1));
+	FIDESlib::CKKS::Ciphertext GPUct2(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c2));
+	FIDESlib::CKKS::Ciphertext GPUct3(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c3));
+
+	state.counters["p_batch"] = state.range(2);
+	state.counters["p_limbs"] = state.range(3);
+	CudaCheckErrorMod;
+
+	for (auto _ : state) {
+		auto start = std::chrono::high_resolution_clock::now();
+		GPUct1.c0.sub(GPUct2.c0);
+		GPUct1.c0.sub(GPUct3.c0);
+		GPUct1.c1.sub(GPUct2.c1);
+		GPUct1.c1.sub(GPUct3.c1);
+		cudaDeviceSynchronize();
+		auto end     = std::chrono::high_resolution_clock::now();
+		auto elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+		state.SetIterationTime(elapsed.count());
+	}
+	CudaCheckErrorMod;
+}
+
+BENCHMARK_DEFINE_F(GeneralFixture, SubSub_Fused)(benchmark::State& state) {
+	if (this->generalTestParams.multDepth <= static_cast<uint64_t>(state.range(3))) {
+		state.SkipWithMessage("cc.L <= level");
+		return;
+	}
+
+	std::vector<int> GPUs               = generalTestParams.GPUs;
+	fideslibParams.batch                = state.range(2);
+	FIDESlib::CKKS::RawParams raw_param = FIDESlib::CKKS::GetRawParams(cc);
+	FIDESlib::CKKS::Context GPUcc       = FIDESlib::CKKS::GenCryptoContextGPU(fideslibParams.adaptTo(raw_param), GPUs);
+
+	std::vector<double> x1 = {0.25, 0.5, 0.75, 1.0, 2.0, 3.0, 4.0, 5.0};
+	lbcrypto::Plaintext ptxt1 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	lbcrypto::Plaintext ptxt2 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	lbcrypto::Plaintext ptxt3 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	auto c1 = cc->Encrypt(keys.publicKey, ptxt1);
+	auto c2 = cc->Encrypt(keys.publicKey, ptxt2);
+	auto c3 = cc->Encrypt(keys.publicKey, ptxt3);
+
+	FIDESlib::CKKS::Ciphertext GPUct1(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c1));
+	FIDESlib::CKKS::Ciphertext GPUct2(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c2));
+	FIDESlib::CKKS::Ciphertext GPUct3(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c3));
+
+	state.counters["p_batch"] = state.range(2);
+	state.counters["p_limbs"] = state.range(3);
+	CudaCheckErrorMod;
+
+	for (auto _ : state) {
+		auto start = std::chrono::high_resolution_clock::now();
+		GPUct1.c0.subSub(GPUct2.c0, GPUct3.c0);
+		GPUct1.c1.subSub(GPUct2.c1, GPUct3.c1);
+		cudaDeviceSynchronize();
+		auto end     = std::chrono::high_resolution_clock::now();
+		auto elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+		state.SetIterationTime(elapsed.count());
+	}
+	CudaCheckErrorMod;
+}
+
+// ============================================================================
+//  Candidate 8: multMultAdd  (this = this*p1 + p2*p3)
+//  Compare: multElement(p1) + addMult(p2, p3)  vs  multMultAdd(p1, p2, p3)
+// ============================================================================
+
+BENCHMARK_DEFINE_F(GeneralFixture, MultMultAdd_Unfused)(benchmark::State& state) {
+	if (this->generalTestParams.multDepth <= static_cast<uint64_t>(state.range(3))) {
+		state.SkipWithMessage("cc.L <= level");
+		return;
+	}
+
+	std::vector<int> GPUs               = generalTestParams.GPUs;
+	fideslibParams.batch                = state.range(2);
+	FIDESlib::CKKS::RawParams raw_param = FIDESlib::CKKS::GetRawParams(cc);
+	FIDESlib::CKKS::Context GPUcc       = FIDESlib::CKKS::GenCryptoContextGPU(fideslibParams.adaptTo(raw_param), GPUs);
+
+	std::vector<double> x1 = {0.25, 0.5, 0.75, 1.0, 2.0, 3.0, 4.0, 5.0};
+	lbcrypto::Plaintext ptxt1 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	lbcrypto::Plaintext ptxt2 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	lbcrypto::Plaintext ptxt3 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	lbcrypto::Plaintext ptxt4 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	auto c1 = cc->Encrypt(keys.publicKey, ptxt1);
+	auto c2 = cc->Encrypt(keys.publicKey, ptxt2);
+	auto c3 = cc->Encrypt(keys.publicKey, ptxt3);
+	auto c4 = cc->Encrypt(keys.publicKey, ptxt4);
+
+	FIDESlib::CKKS::Ciphertext GPUct1(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c1));
+	FIDESlib::CKKS::Ciphertext GPUct2(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c2));
+	FIDESlib::CKKS::Ciphertext GPUct3(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c3));
+	FIDESlib::CKKS::Ciphertext GPUct4(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c4));
+
+	state.counters["p_batch"] = state.range(2);
+	state.counters["p_limbs"] = state.range(3);
+	CudaCheckErrorMod;
+
+	for (auto _ : state) {
+		auto start = std::chrono::high_resolution_clock::now();
+		GPUct1.c0.multElement(GPUct2.c0);
+		GPUct1.c0.addMult(GPUct3.c0, GPUct4.c0);
+		GPUct1.c1.multElement(GPUct2.c1);
+		GPUct1.c1.addMult(GPUct3.c1, GPUct4.c1);
+		cudaDeviceSynchronize();
+		auto end     = std::chrono::high_resolution_clock::now();
+		auto elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+		state.SetIterationTime(elapsed.count());
+	}
+	CudaCheckErrorMod;
+}
+
+BENCHMARK_DEFINE_F(GeneralFixture, MultMultAdd_Fused)(benchmark::State& state) {
+	if (this->generalTestParams.multDepth <= static_cast<uint64_t>(state.range(3))) {
+		state.SkipWithMessage("cc.L <= level");
+		return;
+	}
+
+	std::vector<int> GPUs               = generalTestParams.GPUs;
+	fideslibParams.batch                = state.range(2);
+	FIDESlib::CKKS::RawParams raw_param = FIDESlib::CKKS::GetRawParams(cc);
+	FIDESlib::CKKS::Context GPUcc       = FIDESlib::CKKS::GenCryptoContextGPU(fideslibParams.adaptTo(raw_param), GPUs);
+
+	std::vector<double> x1 = {0.25, 0.5, 0.75, 1.0, 2.0, 3.0, 4.0, 5.0};
+	lbcrypto::Plaintext ptxt1 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	lbcrypto::Plaintext ptxt2 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	lbcrypto::Plaintext ptxt3 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	lbcrypto::Plaintext ptxt4 = cc->MakeCKKSPackedPlaintext(x1, 1, state.range(3));
+	auto c1 = cc->Encrypt(keys.publicKey, ptxt1);
+	auto c2 = cc->Encrypt(keys.publicKey, ptxt2);
+	auto c3 = cc->Encrypt(keys.publicKey, ptxt3);
+	auto c4 = cc->Encrypt(keys.publicKey, ptxt4);
+
+	FIDESlib::CKKS::Ciphertext GPUct1(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c1));
+	FIDESlib::CKKS::Ciphertext GPUct2(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c2));
+	FIDESlib::CKKS::Ciphertext GPUct3(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c3));
+	FIDESlib::CKKS::Ciphertext GPUct4(GPUcc, FIDESlib::CKKS::GetRawCipherText(cc, c4));
+
+	state.counters["p_batch"] = state.range(2);
+	state.counters["p_limbs"] = state.range(3);
+	CudaCheckErrorMod;
+
+	for (auto _ : state) {
+		auto start = std::chrono::high_resolution_clock::now();
+		GPUct1.c0.multMultAdd(GPUct2.c0, GPUct3.c0, GPUct4.c0);
+		GPUct1.c1.multMultAdd(GPUct2.c1, GPUct3.c1, GPUct4.c1);
+		cudaDeviceSynchronize();
+		auto end     = std::chrono::high_resolution_clock::now();
+		auto elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+		state.SetIterationTime(elapsed.count());
+	}
+	CudaCheckErrorMod;
+}
+
+// ============================================================================
 //  Registration
 // ============================================================================
 
@@ -392,5 +742,21 @@ BENCHMARK_REGISTER_F(GeneralFixture, AddSub_Fused)->ArgsProduct({PARAMETERS, {0}
 // Candidate 4: multAddSub
 BENCHMARK_REGISTER_F(GeneralFixture, MultAddSub_Unfused)->ArgsProduct({PARAMETERS, {0}, BATCH_CONFIG, LEVEL_CONFIG})->UseManualTime();
 BENCHMARK_REGISTER_F(GeneralFixture, MultAddSub_Fused)->ArgsProduct({PARAMETERS, {0}, BATCH_CONFIG, LEVEL_CONFIG})->UseManualTime();
+
+// Candidate 5: subAdd
+BENCHMARK_REGISTER_F(GeneralFixture, SubAdd_Unfused)->ArgsProduct({PARAMETERS, {0}, BATCH_CONFIG, LEVEL_CONFIG})->UseManualTime();
+BENCHMARK_REGISTER_F(GeneralFixture, SubAdd_Fused)->ArgsProduct({PARAMETERS, {0}, BATCH_CONFIG, LEVEL_CONFIG})->UseManualTime();
+
+// Candidate 6: addAdd
+BENCHMARK_REGISTER_F(GeneralFixture, AddAdd_Unfused)->ArgsProduct({PARAMETERS, {0}, BATCH_CONFIG, LEVEL_CONFIG})->UseManualTime();
+BENCHMARK_REGISTER_F(GeneralFixture, AddAdd_Fused)->ArgsProduct({PARAMETERS, {0}, BATCH_CONFIG, LEVEL_CONFIG})->UseManualTime();
+
+// Candidate 7: subSub
+BENCHMARK_REGISTER_F(GeneralFixture, SubSub_Unfused)->ArgsProduct({PARAMETERS, {0}, BATCH_CONFIG, LEVEL_CONFIG})->UseManualTime();
+BENCHMARK_REGISTER_F(GeneralFixture, SubSub_Fused)->ArgsProduct({PARAMETERS, {0}, BATCH_CONFIG, LEVEL_CONFIG})->UseManualTime();
+
+// Candidate 8: multMultAdd
+BENCHMARK_REGISTER_F(GeneralFixture, MultMultAdd_Unfused)->ArgsProduct({PARAMETERS, {0}, BATCH_CONFIG, LEVEL_CONFIG})->UseManualTime();
+BENCHMARK_REGISTER_F(GeneralFixture, MultMultAdd_Fused)->ArgsProduct({PARAMETERS, {0}, BATCH_CONFIG, LEVEL_CONFIG})->UseManualTime();
 
 }  // namespace FIDESlib::Benchmarks

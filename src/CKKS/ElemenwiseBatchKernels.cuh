@@ -101,6 +101,24 @@ __global__ void addSub_(const __grid_constant__ int primeid_init, void** l, void
 // l = l * l1 + l2 - l3  (modmult + modadd + modsub in one pass)
 __global__ void multAddSub_(const __grid_constant__ int primeid_init, void** l, void** l1, void** l2, void** l3);
 
+// l = (l - l1) + l2  (modsub + modadd in one pass)
+__global__ void subAdd_(const __grid_constant__ int primeid_init, void** l, void** l1, void** l2);
+
+// l = (l + l1) + l2  (modadd + modadd in one pass)
+__global__ void addAdd_(const __grid_constant__ int primeid_init, void** l, void** l1, void** l2);
+
+// l = (l - l1) - l2  (modsub + modsub in one pass)
+__global__ void subSub_(const __grid_constant__ int primeid_init, void** l, void** l1, void** l2);
+
+// l = l*l1 + l2*l3  (two modmults + modadd in one pass)
+__global__ void multMultAdd_(const __grid_constant__ int primeid_init, void** l, void** l1, void** l2, void** l3);
+
+// l = l*scalar + l2  (scalar modmult + modadd in one pass)
+__global__ void scalarMultAdd_(const __grid_constant__ int primeid_init, void** l, const uint64_t* scalar, const uint64_t* shoup_mu, void** l2);
+
+// l = l*scalar - l2  (scalar modmult + modsub in one pass)
+__global__ void scalarMultSub_(const __grid_constant__ int primeid_init, void** l, const uint64_t* scalar, const uint64_t* shoup_mu, void** l2);
+
 }  // namespace FIDESlib::CKKS
 
 #endif  //GPUCKKS_ELEMENWISEBATCHKERNELS_CUH

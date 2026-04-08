@@ -182,6 +182,17 @@ class LimbPartition {
     void subMult(const LimbPartition& partition1, const LimbPartition& partition2);
     void addSub(const LimbPartition& partition1, const LimbPartition& partition2);
     void multAddSub(const LimbPartition& partition1, const LimbPartition& partition2, const LimbPartition& partition3);
+    void subAdd(const LimbPartition& partition1, const LimbPartition& partition2);
+    void addAdd(const LimbPartition& partition1, const LimbPartition& partition2);
+    void subSub(const LimbPartition& partition1, const LimbPartition& partition2);
+    void multMultAdd(const LimbPartition& partition1, const LimbPartition& partition2, const LimbPartition& partition3);
+    void scalarMultAdd(std::vector<uint64_t>& scalar, std::vector<uint64_t>& shoup_mu, const LimbPartition& partition2);
+    void scalarMultSub(std::vector<uint64_t>& scalar, std::vector<uint64_t>& shoup_mu, const LimbPartition& partition2);
+
+    // Fused automorph + add:  this[perm(j)] = src[j] + b[perm(j)]
+    void automorphAdd(const int index, const int br, const LimbPartition& src, const LimbPartition& b);
+    // Fused automorph + sub:  this[perm(j)] = src[j] - b[perm(j)]
+    void automorphSub(const int index, const int br, const LimbPartition& src, const LimbPartition& b);
 
     void generateLimbSingleMalloc();
     void generateLimbConstant();

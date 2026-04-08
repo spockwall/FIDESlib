@@ -1708,6 +1708,122 @@ __global__ void multAddSub_(const __grid_constant__ int primeid_init,
     }
 }
 
+// l = (l - l1) + l2   (modsub + modadd in one pass)
+__global__ void subAdd_(const __grid_constant__ int primeid_init,
+                        void** l, void** l1, void** l2) {
+    const int primeid = C_.primeid_flattened[primeid_init + blockIdx.y];
+    const int idx = threadIdx.x + blockDim.x * blockIdx.x;
+
+    if (ISU64(primeid)) {
+        using T = uint64_t;
+        T tmp = modsub(((T*)l[blockIdx.y])[idx],
+                       ((T*)l1[blockIdx.y])[idx], primeid);
+        ((T*)l[blockIdx.y])[idx] = modadd(tmp, ((T*)l2[blockIdx.y])[idx], primeid);
+    } else {
+        using T = uint32_t;
+        T tmp = modsub(((T*)l[blockIdx.y])[idx],
+                       ((T*)l1[blockIdx.y])[idx], primeid);
+        ((T*)l[blockIdx.y])[idx] = modadd(tmp, ((T*)l2[blockIdx.y])[idx], primeid);
+    }
+}
+
+// l = (l + l1) + l2   (modadd + modadd in one pass)
+__global__ void addAdd_(const __grid_constant__ int primeid_init,
+                        void** l, void** l1, void** l2) {
+    const int primeid = C_.primeid_flattened[primeid_init + blockIdx.y];
+    const int idx = threadIdx.x + blockDim.x * blockIdx.x;
+
+    if (ISU64(primeid)) {
+        using T = uint64_t;
+        T tmp = modadd(((T*)l[blockIdx.y])[idx],
+                       ((T*)l1[blockIdx.y])[idx], primeid);
+        ((T*)l[blockIdx.y])[idx] = modadd(tmp, ((T*)l2[blockIdx.y])[idx], primeid);
+    } else {
+        using T = uint32_t;
+        T tmp = modadd(((T*)l[blockIdx.y])[idx],
+                       ((T*)l1[blockIdx.y])[idx], primeid);
+        ((T*)l[blockIdx.y])[idx] = modadd(tmp, ((T*)l2[blockIdx.y])[idx], primeid);
+    }
+}
+
+// l = (l - l1) - l2   (modsub + modsub in one pass)
+__global__ void subSub_(const __grid_constant__ int primeid_init,
+                        void** l, void** l1, void** l2) {
+    const int primeid = C_.primeid_flattened[primeid_init + blockIdx.y];
+    const int idx = threadIdx.x + blockDim.x * blockIdx.x;
+
+    if (ISU64(primeid)) {
+        using T = uint64_t;
+        T tmp = modsub(((T*)l[blockIdx.y])[idx],
+                       ((T*)l1[blockIdx.y])[idx], primeid);
+        ((T*)l[blockIdx.y])[idx] = modsub(tmp, ((T*)l2[blockIdx.y])[idx], primeid);
+    } else {
+        using T = uint32_t;
+        T tmp = modsub(((T*)l[blockIdx.y])[idx],
+                       ((T*)l1[blockIdx.y])[idx], primeid);
+        ((T*)l[blockIdx.y])[idx] = modsub(tmp, ((T*)l2[blockIdx.y])[idx], primeid);
+    }
+}
+
+// l = l*l1 + l2*l3   (two modmults + modadd in one pass)
+__global__ void multMultAdd_(const __grid_constant__ int primeid_init,
+                             void** l, void** l1, void** l2, void** l3) {
+    const int primeid = C_.primeid_flattened[primeid_init + blockIdx.y];
+    const int idx = threadIdx.x + blockDim.x * blockIdx.x;
+    constexpr ALGO algo = ALGO_BARRETT;
+
+    if (ISU64(primeid)) {
+        using T = uint64_t;
+        T a = modmult<algo>(((T*)l[blockIdx.y])[idx],
+                            ((T*)l1[blockIdx.y])[idx], primeid);
+        T b = modmult<algo>(((T*)l2[blockIdx.y])[idx],
+                            ((T*)l3[blockIdx.y])[idx], primeid);
+        ((T*)l[blockIdx.y])[idx] = modadd(a, b, primeid);
+    } else {
+        using T = uint32_t;
+        T a = modmult<algo>(((T*)l[blockIdx.y])[idx],
+                            ((T*)l1[blockIdx.y])[idx], primeid);
+        T b = modmult<algo>(((T*)l2[blockIdx.y])[idx],
+                            ((T*)l3[blockIdx.y])[idx], primeid);
+        ((T*)l[blockIdx.y])[idx] = modadd(a, b, primeid);
+    }
+}
+
+// l = l*scalar + l2   (scalar modmult + modadd in one pass)
+// scalar[primeid] is per-prime, shoup_mu[primeid] is precomputed Shoup quotient
+__global__ void scalarMultAdd_(const __grid_constant__ int primeid_init,
+                               void** l, const uint64_t* scalar, const uint64_t* shoup_mu, void** l2) {
+    const int primeid = C_.primeid_flattened[primeid_init + blockIdx.y];
+    const int idx = threadIdx.x + blockDim.x * blockIdx.x;
+
+    if (ISU64(primeid)) {
+        using T = uint64_t;
+        T res = modmult<ALGO_SHOUP>(((T*)l[blockIdx.y])[idx], scalar[primeid], primeid, shoup_mu ? shoup_mu[primeid] : 0);
+        ((T*)l[blockIdx.y])[idx] = modadd(res, ((T*)l2[blockIdx.y])[idx], primeid);
+    } else {
+        using T = uint32_t;
+        T res = modmult<ALGO_SHOUP>(((T*)l[blockIdx.y])[idx], (T)scalar[primeid], primeid, (T)(shoup_mu ? shoup_mu[primeid] : 0));
+        ((T*)l[blockIdx.y])[idx] = modadd(res, ((T*)l2[blockIdx.y])[idx], primeid);
+    }
+}
+
+// l = l*scalar - l2   (scalar modmult + modsub in one pass)
+__global__ void scalarMultSub_(const __grid_constant__ int primeid_init,
+                               void** l, const uint64_t* scalar, const uint64_t* shoup_mu, void** l2) {
+    const int primeid = C_.primeid_flattened[primeid_init + blockIdx.y];
+    const int idx = threadIdx.x + blockDim.x * blockIdx.x;
+
+    if (ISU64(primeid)) {
+        using T = uint64_t;
+        T res = modmult<ALGO_SHOUP>(((T*)l[blockIdx.y])[idx], scalar[primeid], primeid, shoup_mu ? shoup_mu[primeid] : 0);
+        ((T*)l[blockIdx.y])[idx] = modsub(res, ((T*)l2[blockIdx.y])[idx], primeid);
+    } else {
+        using T = uint32_t;
+        T res = modmult<ALGO_SHOUP>(((T*)l[blockIdx.y])[idx], (T)scalar[primeid], primeid, (T)(shoup_mu ? shoup_mu[primeid] : 0));
+        ((T*)l[blockIdx.y])[idx] = modsub(res, ((T*)l2[blockIdx.y])[idx], primeid);
+    }
+}
+
 }  // namespace CKKS
 }  // namespace FIDESlib
 

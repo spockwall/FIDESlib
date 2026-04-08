@@ -26,4 +26,30 @@ __global__ void automorph_multi_(void** a, void** a_rot, const int k, const int 
     }
 }
 
+// Fused automorph + add:  a_rot[perm(j)] = a[j] + b[perm(j)]
+__global__ void automorphAdd_multi_(void** a, void** a_rot, void** b, const int k, const int br,
+                                    const int primeid_init) {
+    const int primeid = C_.primeid_flattened[primeid_init + blockIdx.y];
+    if (ISU64(primeid)) {
+        automorphAdd__((uint64_t*)a[blockIdx.y], (uint64_t*)a_rot[blockIdx.y],
+                       (const uint64_t*)b[blockIdx.y], C_.N, C_.logN, k, br, primeid);
+    } else {
+        automorphAdd__((uint32_t*)a[blockIdx.y], (uint32_t*)a_rot[blockIdx.y],
+                       (const uint32_t*)b[blockIdx.y], C_.N, C_.logN, k, br, primeid);
+    }
+}
+
+// Fused automorph + sub:  a_rot[perm(j)] = a[j] - b[perm(j)]
+__global__ void automorphSub_multi_(void** a, void** a_rot, void** b, const int k, const int br,
+                                    const int primeid_init) {
+    const int primeid = C_.primeid_flattened[primeid_init + blockIdx.y];
+    if (ISU64(primeid)) {
+        automorphSub__((uint64_t*)a[blockIdx.y], (uint64_t*)a_rot[blockIdx.y],
+                       (const uint64_t*)b[blockIdx.y], C_.N, C_.logN, k, br, primeid);
+    } else {
+        automorphSub__((uint32_t*)a[blockIdx.y], (uint32_t*)a_rot[blockIdx.y],
+                       (const uint32_t*)b[blockIdx.y], C_.N, C_.logN, k, br, primeid);
+    }
+}
+
 }  // namespace FIDESlib::CKKS

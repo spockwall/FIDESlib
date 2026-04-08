@@ -1127,6 +1127,205 @@ void LimbPartition::multAddSub(const LimbPartition& partition1, const LimbPartit
     partition3.getS().wait(s);
 }
 
+void LimbPartition::subAdd(const LimbPartition& partition1, const LimbPartition& partition2) {
+    const int limbsize = getLimbSize(*level);
+    cudaSetDevice(device);
+    assert(limbsize <= partition1.limb.size());
+    assert(limbsize <= partition2.limb.size());
+
+    s.wait(partition1.getS());
+    s.wait(partition2.getS());
+
+    for (int i = 0; i < limbsize; i += cc.batch) {
+        STREAM(limb[i]).wait(s);
+        uint32_t num_limbs = std::min((int)limbsize - i, cc.batch);
+        subAdd_<<<dim3{(uint32_t)cc.N / 128, num_limbs}, 128, 0, STREAM(limb[i]).ptr()>>>(
+            PARTITION(id, i), limbptr.data + i, partition1.limbptr.data + i, partition2.limbptr.data + i);
+    }
+    for (int i = 0; i < limbsize; i += cc.batch) {
+        s.wait(STREAM(limb[i]));
+    }
+
+    partition1.getS().wait(s);
+    partition2.getS().wait(s);
+}
+
+void LimbPartition::addAdd(const LimbPartition& partition1, const LimbPartition& partition2) {
+    const int limbsize = getLimbSize(*level);
+    cudaSetDevice(device);
+    assert(limbsize <= partition1.limb.size());
+    assert(limbsize <= partition2.limb.size());
+
+    s.wait(partition1.getS());
+    s.wait(partition2.getS());
+
+    for (int i = 0; i < limbsize; i += cc.batch) {
+        STREAM(limb[i]).wait(s);
+        uint32_t num_limbs = std::min((int)limbsize - i, cc.batch);
+        addAdd_<<<dim3{(uint32_t)cc.N / 128, num_limbs}, 128, 0, STREAM(limb[i]).ptr()>>>(
+            PARTITION(id, i), limbptr.data + i, partition1.limbptr.data + i, partition2.limbptr.data + i);
+    }
+    for (int i = 0; i < limbsize; i += cc.batch) {
+        s.wait(STREAM(limb[i]));
+    }
+
+    partition1.getS().wait(s);
+    partition2.getS().wait(s);
+}
+
+void LimbPartition::subSub(const LimbPartition& partition1, const LimbPartition& partition2) {
+    const int limbsize = getLimbSize(*level);
+    cudaSetDevice(device);
+    assert(limbsize <= partition1.limb.size());
+    assert(limbsize <= partition2.limb.size());
+
+    s.wait(partition1.getS());
+    s.wait(partition2.getS());
+
+    for (int i = 0; i < limbsize; i += cc.batch) {
+        STREAM(limb[i]).wait(s);
+        uint32_t num_limbs = std::min((int)limbsize - i, cc.batch);
+        subSub_<<<dim3{(uint32_t)cc.N / 128, num_limbs}, 128, 0, STREAM(limb[i]).ptr()>>>(
+            PARTITION(id, i), limbptr.data + i, partition1.limbptr.data + i, partition2.limbptr.data + i);
+    }
+    for (int i = 0; i < limbsize; i += cc.batch) {
+        s.wait(STREAM(limb[i]));
+    }
+
+    partition1.getS().wait(s);
+    partition2.getS().wait(s);
+}
+
+void LimbPartition::multMultAdd(const LimbPartition& partition1, const LimbPartition& partition2, const LimbPartition& partition3) {
+    const int limbsize = getLimbSize(*level);
+    cudaSetDevice(device);
+    assert(limbsize <= partition1.limb.size());
+    assert(limbsize <= partition2.limb.size());
+    assert(limbsize <= partition3.limb.size());
+
+    s.wait(partition1.getS());
+    s.wait(partition2.getS());
+    s.wait(partition3.getS());
+
+    for (int i = 0; i < limbsize; i += cc.batch) {
+        STREAM(limb[i]).wait(s);
+        uint32_t num_limbs = std::min((int)limbsize - i, cc.batch);
+        multMultAdd_<<<dim3{(uint32_t)cc.N / 128, num_limbs}, 128, 0, STREAM(limb[i]).ptr()>>>(
+            PARTITION(id, i), limbptr.data + i, partition1.limbptr.data + i, partition2.limbptr.data + i, partition3.limbptr.data + i);
+    }
+    for (int i = 0; i < limbsize; i += cc.batch) {
+        s.wait(STREAM(limb[i]));
+    }
+
+    partition1.getS().wait(s);
+    partition2.getS().wait(s);
+    partition3.getS().wait(s);
+}
+
+void LimbPartition::scalarMultAdd(std::vector<uint64_t>& scalar, std::vector<uint64_t>& shoup_mu, const LimbPartition& partition2) {
+    const int limbsize = getLimbSize(*level);
+    cudaSetDevice(device);
+    assert(limbsize <= partition2.limb.size());
+
+    s.wait(partition2.getS());
+
+    uint64_t* d_scalar;
+    uint64_t* d_shoup;
+    cudaMallocAsync(&d_scalar, scalar.size() * sizeof(uint64_t), s.ptr());
+    cudaMemcpyAsync(d_scalar, scalar.data(), scalar.size() * sizeof(uint64_t), cudaMemcpyDefault, s.ptr());
+    cudaMallocAsync(&d_shoup, shoup_mu.size() * sizeof(uint64_t), s.ptr());
+    cudaMemcpyAsync(d_shoup, shoup_mu.data(), shoup_mu.size() * sizeof(uint64_t), cudaMemcpyDefault, s.ptr());
+
+    for (int i = 0; i < limbsize; i += cc.batch) {
+        STREAM(limb[i]).wait(s);
+        uint32_t num_limbs = std::min((int)limbsize - i, cc.batch);
+        scalarMultAdd_<<<dim3{(uint32_t)cc.N / 128, num_limbs}, 128, 0, STREAM(limb[i]).ptr()>>>(
+            PARTITION(id, i), limbptr.data + i, d_scalar, d_shoup, partition2.limbptr.data + i);
+    }
+    for (int i = 0; i < limbsize; i += cc.batch) {
+        s.wait(STREAM(limb[i]));
+    }
+
+    cudaFreeAsync(d_scalar, s.ptr());
+    cudaFreeAsync(d_shoup, s.ptr());
+    partition2.getS().wait(s);
+}
+
+void LimbPartition::scalarMultSub(std::vector<uint64_t>& scalar, std::vector<uint64_t>& shoup_mu, const LimbPartition& partition2) {
+    const int limbsize = getLimbSize(*level);
+    cudaSetDevice(device);
+    assert(limbsize <= partition2.limb.size());
+
+    s.wait(partition2.getS());
+
+    uint64_t* d_scalar;
+    uint64_t* d_shoup;
+    cudaMallocAsync(&d_scalar, scalar.size() * sizeof(uint64_t), s.ptr());
+    cudaMemcpyAsync(d_scalar, scalar.data(), scalar.size() * sizeof(uint64_t), cudaMemcpyDefault, s.ptr());
+    cudaMallocAsync(&d_shoup, shoup_mu.size() * sizeof(uint64_t), s.ptr());
+    cudaMemcpyAsync(d_shoup, shoup_mu.data(), shoup_mu.size() * sizeof(uint64_t), cudaMemcpyDefault, s.ptr());
+
+    for (int i = 0; i < limbsize; i += cc.batch) {
+        STREAM(limb[i]).wait(s);
+        uint32_t num_limbs = std::min((int)limbsize - i, cc.batch);
+        scalarMultSub_<<<dim3{(uint32_t)cc.N / 128, num_limbs}, 128, 0, STREAM(limb[i]).ptr()>>>(
+            PARTITION(id, i), limbptr.data + i, d_scalar, d_shoup, partition2.limbptr.data + i);
+    }
+    for (int i = 0; i < limbsize; i += cc.batch) {
+        s.wait(STREAM(limb[i]));
+    }
+
+    cudaFreeAsync(d_scalar, s.ptr());
+    cudaFreeAsync(d_shoup, s.ptr());
+    partition2.getS().wait(s);
+}
+
+void LimbPartition::automorphAdd(const int index, const int br, const LimbPartition& src, const LimbPartition& b) {
+    const int limbsize = getLimbSize(*level);
+    cudaSetDevice(device);
+    assert(limbsize <= src.limb.size());
+    assert(limbsize <= b.limb.size());
+
+    s.wait(src.getS());
+    s.wait(b.getS());
+
+    for (int i = 0; i < limbsize; i += cc.batch) {
+        STREAM(limb[i]).wait(s);
+        uint32_t num_limbs = std::min((int)limbsize - i, cc.batch);
+        automorphAdd_multi_<<<dim3{(uint32_t)cc.N / 128, num_limbs}, 128, 0, STREAM(limb[i]).ptr()>>>(
+            src.limbptr.data + i, limbptr.data + i, b.limbptr.data + i, index, br, PARTITION(id, i));
+    }
+    for (int i = 0; i < limbsize; i += cc.batch) {
+        s.wait(STREAM(limb[i]));
+    }
+
+    src.getS().wait(s);
+    b.getS().wait(s);
+}
+
+void LimbPartition::automorphSub(const int index, const int br, const LimbPartition& src, const LimbPartition& b) {
+    const int limbsize = getLimbSize(*level);
+    cudaSetDevice(device);
+    assert(limbsize <= src.limb.size());
+    assert(limbsize <= b.limb.size());
+
+    s.wait(src.getS());
+    s.wait(b.getS());
+
+    for (int i = 0; i < limbsize; i += cc.batch) {
+        STREAM(limb[i]).wait(s);
+        uint32_t num_limbs = std::min((int)limbsize - i, cc.batch);
+        automorphSub_multi_<<<dim3{(uint32_t)cc.N / 128, num_limbs}, 128, 0, STREAM(limb[i]).ptr()>>>(
+            src.limbptr.data + i, limbptr.data + i, b.limbptr.data + i, index, br, PARTITION(id, i));
+    }
+    for (int i = 0; i < limbsize; i += cc.batch) {
+        s.wait(STREAM(limb[i]));
+    }
+
+    src.getS().wait(s);
+    b.getS().wait(s);
+}
+
 void LimbPartition::generateLimbSingleMalloc() {
     cudaSetDevice(device);
     const int limbsize = meta.size();
