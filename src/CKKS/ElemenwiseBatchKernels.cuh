@@ -87,6 +87,20 @@ __global__ void copy_reuse_negative_b___(void*** a, void*** b, const int primeid
 __global__ void binomialDotProdBatched___(const __grid_constant__ int primeid_init, void*** c0, void*** c1, void*** d0,
                                           void*** d1, void*** c0_out, void*** c1_out, void*** c2_out, int its, int n);
 
+// ---- Fused kernel candidates (compositions of __forceinline__ building blocks) ----
+
+// l = l * l1 - l2   (modmult + modsub in one pass)
+__global__ void mult1Sub2_(const __grid_constant__ int primeid_init, void** l, void** l1, void** l2);
+
+// l = (l - l1) * l2  (modsub + modmult in one pass)
+__global__ void subMult_(const __grid_constant__ int primeid_init, void** l, void** l1, void** l2);
+
+// l = (l + l1) - l2  (modadd + modsub in one pass)
+__global__ void addSub_(const __grid_constant__ int primeid_init, void** l, void** l1, void** l2);
+
+// l = l * l1 + l2 - l3  (modmult + modadd + modsub in one pass)
+__global__ void multAddSub_(const __grid_constant__ int primeid_init, void** l, void** l1, void** l2, void** l3);
+
 }  // namespace FIDESlib::CKKS
 
 #endif  //GPUCKKS_ELEMENWISEBATCHKERNELS_CUH

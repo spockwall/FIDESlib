@@ -1623,6 +1623,91 @@ __global__ void binomialDotProdBatched___(const __grid_constant__ int primeid_in
     }
 }
 
+// ---- Fused kernel candidates ----
+
+// l = l * l1 - l2   (modmult + modsub in one pass)
+__global__ void mult1Sub2_(const __grid_constant__ int primeid_init,
+                           void** l, void** l1, void** l2) {
+    const int primeid = C_.primeid_flattened[primeid_init + blockIdx.y];
+    const int idx = threadIdx.x + blockDim.x * blockIdx.x;
+    constexpr ALGO algo = ALGO_BARRETT;
+
+    if (ISU64(primeid)) {
+        using T = uint64_t;
+        T aux = ((T*)l2[blockIdx.y])[idx];
+        T res = modmult<algo>(((T*)l[blockIdx.y])[idx],
+                              ((T*)l1[blockIdx.y])[idx], primeid);
+        ((T*)l[blockIdx.y])[idx] = modsub(res, aux, primeid);
+    } else {
+        using T = uint32_t;
+        T aux = ((T*)l2[blockIdx.y])[idx];
+        T res = modmult<algo>(((T*)l[blockIdx.y])[idx],
+                              ((T*)l1[blockIdx.y])[idx], primeid);
+        ((T*)l[blockIdx.y])[idx] = modsub(res, aux, primeid);
+    }
+}
+
+// l = (l - l1) * l2   (modsub + modmult in one pass)
+__global__ void subMult_(const __grid_constant__ int primeid_init,
+                         void** l, void** l1, void** l2) {
+    const int primeid = C_.primeid_flattened[primeid_init + blockIdx.y];
+    const int idx = threadIdx.x + blockDim.x * blockIdx.x;
+    constexpr ALGO algo = ALGO_BARRETT;
+
+    if (ISU64(primeid)) {
+        using T = uint64_t;
+        T tmp = modsub(((T*)l[blockIdx.y])[idx],
+                       ((T*)l1[blockIdx.y])[idx], primeid);
+        ((T*)l[blockIdx.y])[idx] = modmult<algo>(tmp, ((T*)l2[blockIdx.y])[idx], primeid);
+    } else {
+        using T = uint32_t;
+        T tmp = modsub(((T*)l[blockIdx.y])[idx],
+                       ((T*)l1[blockIdx.y])[idx], primeid);
+        ((T*)l[blockIdx.y])[idx] = modmult<algo>(tmp, ((T*)l2[blockIdx.y])[idx], primeid);
+    }
+}
+
+// l = (l + l1) - l2   (modadd + modsub in one pass)
+__global__ void addSub_(const __grid_constant__ int primeid_init,
+                        void** l, void** l1, void** l2) {
+    const int primeid = C_.primeid_flattened[primeid_init + blockIdx.y];
+    const int idx = threadIdx.x + blockDim.x * blockIdx.x;
+
+    if (ISU64(primeid)) {
+        using T = uint64_t;
+        T tmp = modadd(((T*)l[blockIdx.y])[idx],
+                       ((T*)l1[blockIdx.y])[idx], primeid);
+        ((T*)l[blockIdx.y])[idx] = modsub(tmp, ((T*)l2[blockIdx.y])[idx], primeid);
+    } else {
+        using T = uint32_t;
+        T tmp = modadd(((T*)l[blockIdx.y])[idx],
+                       ((T*)l1[blockIdx.y])[idx], primeid);
+        ((T*)l[blockIdx.y])[idx] = modsub(tmp, ((T*)l2[blockIdx.y])[idx], primeid);
+    }
+}
+
+// l = l * l1 + l2 - l3   (modmult + modadd + modsub in one pass)
+__global__ void multAddSub_(const __grid_constant__ int primeid_init,
+                            void** l, void** l1, void** l2, void** l3) {
+    const int primeid = C_.primeid_flattened[primeid_init + blockIdx.y];
+    const int idx = threadIdx.x + blockDim.x * blockIdx.x;
+    constexpr ALGO algo = ALGO_BARRETT;
+
+    if (ISU64(primeid)) {
+        using T = uint64_t;
+        T res = modmult<algo>(((T*)l[blockIdx.y])[idx],
+                              ((T*)l1[blockIdx.y])[idx], primeid);
+        res = modadd(res, ((T*)l2[blockIdx.y])[idx], primeid);
+        ((T*)l[blockIdx.y])[idx] = modsub(res, ((T*)l3[blockIdx.y])[idx], primeid);
+    } else {
+        using T = uint32_t;
+        T res = modmult<algo>(((T*)l[blockIdx.y])[idx],
+                              ((T*)l1[blockIdx.y])[idx], primeid);
+        res = modadd(res, ((T*)l2[blockIdx.y])[idx], primeid);
+        ((T*)l[blockIdx.y])[idx] = modsub(res, ((T*)l3[blockIdx.y])[idx], primeid);
+    }
+}
+
 }  // namespace CKKS
 }  // namespace FIDESlib
 
