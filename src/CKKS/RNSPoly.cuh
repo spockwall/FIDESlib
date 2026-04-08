@@ -75,6 +75,12 @@ class RNSPoly {
 
     void mult1Add2(const RNSPoly& poly1, const RNSPoly& poly2);
 
+    // Fused kernel candidates
+    void mult1Sub2(const RNSPoly& poly1, const RNSPoly& poly2);
+    void subMult(const RNSPoly& poly1, const RNSPoly& poly2);
+    void addSub(const RNSPoly& poly1, const RNSPoly& poly2);
+    void multAddSub(const RNSPoly& poly1, const RNSPoly& poly2, const RNSPoly& poly3);
+
     void loadDecompDigit(const std::vector<std::vector<std::vector<uint64_t>>>& data,
                          const std::vector<std::vector<uint64_t>>& moduli);
 

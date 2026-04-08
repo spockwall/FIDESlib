@@ -466,6 +466,38 @@ void RNSPoly::mult1Add2(const RNSPoly& poly1, const RNSPoly& poly2) {
     }
 }
 
+void RNSPoly::mult1Sub2(const RNSPoly& poly1, const RNSPoly& poly2) {
+#pragma omp parallel for num_threads(cc.GPUid.size())
+    for (size_t i = 0; i < cc.GPUid.size(); ++i) {
+        assert(omp_get_num_threads() == (int)cc.GPUid.size());
+        GPU.at(i).mult1Sub2(poly1.GPU.at(i), poly2.GPU.at(i));
+    }
+}
+
+void RNSPoly::subMult(const RNSPoly& poly1, const RNSPoly& poly2) {
+#pragma omp parallel for num_threads(cc.GPUid.size())
+    for (size_t i = 0; i < cc.GPUid.size(); ++i) {
+        assert(omp_get_num_threads() == (int)cc.GPUid.size());
+        GPU.at(i).subMult(poly1.GPU.at(i), poly2.GPU.at(i));
+    }
+}
+
+void RNSPoly::addSub(const RNSPoly& poly1, const RNSPoly& poly2) {
+#pragma omp parallel for num_threads(cc.GPUid.size())
+    for (size_t i = 0; i < cc.GPUid.size(); ++i) {
+        assert(omp_get_num_threads() == (int)cc.GPUid.size());
+        GPU.at(i).addSub(poly1.GPU.at(i), poly2.GPU.at(i));
+    }
+}
+
+void RNSPoly::multAddSub(const RNSPoly& poly1, const RNSPoly& poly2, const RNSPoly& poly3) {
+#pragma omp parallel for num_threads(cc.GPUid.size())
+    for (size_t i = 0; i < cc.GPUid.size(); ++i) {
+        assert(omp_get_num_threads() == (int)cc.GPUid.size());
+        GPU.at(i).multAddSub(poly1.GPU.at(i), poly2.GPU.at(i), poly3.GPU.at(i));
+    }
+}
+
 void RNSPoly::dotKSKinto(RNSPoly& acc, const RNSPoly& ksk, const RNSPoly* limbsrc) {
 #pragma omp parallel for num_threads(cc.GPUid.size())
     for (size_t i = 0; i < cc.GPUid.size(); ++i) {

@@ -177,6 +177,12 @@ class LimbPartition {
 
     void mult1Add2(const LimbPartition& partition1, const LimbPartition& partition2);
 
+    // Fused kernel candidates
+    void mult1Sub2(const LimbPartition& partition1, const LimbPartition& partition2);
+    void subMult(const LimbPartition& partition1, const LimbPartition& partition2);
+    void addSub(const LimbPartition& partition1, const LimbPartition& partition2);
+    void multAddSub(const LimbPartition& partition1, const LimbPartition& partition2, const LimbPartition& partition3);
+
     void generateLimbSingleMalloc();
     void generateLimbConstant();
 
